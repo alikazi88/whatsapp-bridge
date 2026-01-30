@@ -12,6 +12,7 @@ app.use(cors());
 // Store for all active clients
 const clients = new Map();
 const qrs = new Map();
+const errors = new Map();
 
 // Global health check
 app.get('/status', (req, res) => {
@@ -27,7 +28,15 @@ const createClient = (restaurantId) => {
             dataPath: path.join(__dirname, '.wwebjs_auth')
         }),
         puppeteer: {
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu'
+            ],
             handleSIGINT: false,
         }
     });
@@ -58,6 +67,7 @@ const createClient = (restaurantId) => {
 
     client.initialize().catch(err => {
         console.error(`Failed to initialize ${restaurantId}:`, err);
+        errors.set(restaurantId, err.message);
     });
 
     clients.set(restaurantId, client);
@@ -73,15 +83,17 @@ app.get('/status/:restaurantId', (req, res) => {
     res.json({
         bridgeOnline: true,
         online: !!client,
-        whatsapp: client?.info ? 'connected' : (qr ? 'needs_scan' : 'initializing'),
+        whatsapp: client?.info ? 'connected' : (qr ? 'needs_scan' : (errors.has(restaurantId) ? 'error' : 'initializing')),
         qr: qr || null,
-        user: client?.info?.pushname || null
+        user: client?.info?.pushname || null,
+        error: errors.get(restaurantId) || null
     });
 });
 
 app.post('/initialize/:restaurantId', (req, res) => {
     const { restaurantId } = req.params;
     console.log(`Initialization request for: ${restaurantId}`);
+    errors.delete(restaurantId); // Clear previous errors
     if (!clients.has(restaurantId)) {
         createClient(restaurantId);
     }
