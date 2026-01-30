@@ -43,7 +43,9 @@ curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Install Chromium/Puppeteer system dependencies
-sudo apt-get install -y libgbm-dev wget gnupg libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 libgbm1 libasound2
+# Note: Newer Ubuntu versions (like 24.04) use 't64' variants for some libraries
+sudo apt-get install -y libgbm-dev wget gnupg libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 libgbm1 libasound2 || \
+sudo apt-get install -y libgbm-dev wget gnupg libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 libgbm1 libasound2t64
 ```
 
 ---
@@ -71,14 +73,61 @@ sudo apt-get install -y libgbm-dev wget gnupg libnss3 libnspr4 libatk1.0-0 libat
 
 ---
 
-## 4. Finalizing Dashboard Connection
+## 4. Enabling HTTPS (SSL) - REQUIRED for Live Dashboard
+Since your dashboard is on `https://`, your bridge **must** also be on `https://`. Browsers block `http` requests from `https` sites (Mixed Content Error).
+
+### 1. Point a Domain/Subdomain
+1. Go to your domain provider (e.g., Cloudflare, GoDaddy).
+2. Create an **A Record** for `bridge.foxmenu.21gfox.ca` pointing to your **Elastic IP** (`51.21.112.191`).
+
+### 2. Install Nginx & Certbot
+```bash
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+```
+
+### 3. Configure Nginx Proxy
+Create a config file:
+```bash
+sudo nano /etc/nginx/sites-available/whatsapp-bridge
+```
+Paste this:
+```nginx
+server {
+    server_name bridge.foxmenu.21gfox.ca;
+
+    location / {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+Enable the site:
+```bash
+sudo ln -s /etc/nginx/sites-available/whatsapp-bridge /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### 4. Get SSL Certificate
+```bash
+sudo certbot --nginx -d bridge.foxmenu.21gfox.ca
+```
+Follow the prompts. Certbot will automatically handle the SSL part.
+
+---
+
+## 5. Finalizing Dashboard Connection
 
 1. Open `dashboard/src/config.ts` on your local machine.
-2. Update the bridge URL:
+2. Update the bridge URL to your new **HTTPS** domain:
    ```typescript
-   export const WHATSAPP_BRIDGE_URL = 'http://your-elastic-ip:3001';
+   export const WHATSAPP_BRIDGE_URL = 'https://bridge.foxmenu.21gfox.ca';
    ```
-3. Re-build your dashboard (`npm run build`) and upload the `dist` folder to your web hosting (FileZilla).
+3. Re-build and re-upload your dashboard.
 
 ---
 

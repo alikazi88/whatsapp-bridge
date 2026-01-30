@@ -71,6 +71,7 @@ app.get('/status/:restaurantId', (req, res) => {
     const qr = qrs.get(restaurantId);
 
     res.json({
+        bridgeOnline: true,
         online: !!client,
         whatsapp: client?.info ? 'connected' : (qr ? 'needs_scan' : 'initializing'),
         qr: qr || null,
@@ -80,6 +81,7 @@ app.get('/status/:restaurantId', (req, res) => {
 
 app.post('/initialize/:restaurantId', (req, res) => {
     const { restaurantId } = req.params;
+    console.log(`Initialization request for: ${restaurantId}`);
     if (!clients.has(restaurantId)) {
         createClient(restaurantId);
     }
