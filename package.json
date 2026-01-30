@@ -1,0 +1,16 @@
+{
+    "name": "fox-whatsapp-bridge",
+    "version": "1.0.0",
+    "description": "Fox CRM WhatsApp Bridge",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "whatsapp-web.js": "github:pedroslopez/whatsapp-web.js",
+        "qrcode-terminal": "^0.12.0",
+        "express": "^4.18.2",
+        "cors": "^2.8.5",
+        "axios": "^1.6.0"
+    }
+}
