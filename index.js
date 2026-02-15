@@ -24,6 +24,7 @@ app.use(cors({
 // Store for all active clients
 const clients = new Map();
 const qrs = new Map();
+const qrTimeouts = new Map();
 const errors = new Map();
 
 // Global process error handlers to prevent crash loops
@@ -46,6 +47,12 @@ app.get('/status', (req, res) => {
 
 const createClient = (restaurantId) => {
     console.log(`[${new Date().toISOString()}] Initializing client for: ${restaurantId}`);
+
+    // Clear any existing timeout for this restaurant
+    if (qrTimeouts.has(restaurantId)) {
+        clearTimeout(qrTimeouts.get(restaurantId));
+        qrTimeouts.delete(restaurantId);
+    }
 
     try {
         const client = new Client({
@@ -79,12 +86,33 @@ const createClient = (restaurantId) => {
         client.on('qr', (qr) => {
             console.log(`[${restaurantId}] QR received`);
             qrs.set(restaurantId, qr);
+
+            // Set a watchdog: If not scanned in 2 minutes, refresh
+            if (qrTimeouts.has(restaurantId)) clearTimeout(qrTimeouts.get(restaurantId));
+
+            const timeout = setTimeout(async () => {
+                const currentStatus = clients.get(restaurantId);
+                if (currentStatus && !currentStatus.info) {
+                    console.log(`[${restaurantId}] QR Scan Timeout (2 mins). Refreshing...`);
+                    await currentStatus.destroy().catch(() => { });
+                    clients.delete(restaurantId);
+                    qrs.delete(restaurantId);
+                    createClient(restaurantId);
+                }
+            }, 120000); // 120 seconds
+
+            qrTimeouts.set(restaurantId, timeout);
         });
 
         client.on('ready', () => {
             console.log(`[${restaurantId}] Client is ready!`);
             qrs.delete(restaurantId);
             errors.delete(restaurantId);
+
+            if (qrTimeouts.has(restaurantId)) {
+                clearTimeout(qrTimeouts.get(restaurantId));
+                qrTimeouts.delete(restaurantId);
+            }
         });
 
         client.on('authenticated', () => {
@@ -116,7 +144,7 @@ const createClient = (restaurantId) => {
 };
 
 // Endpoints
-app.get('/status/:restaurantId', (req, res) => {
+app.get('/status/:restaurantId', async (req, res) => {
     const { restaurantId } = req.params;
     const client = clients.get(restaurantId);
     const qr = qrs.get(restaurantId);
@@ -124,29 +152,72 @@ app.get('/status/:restaurantId', (req, res) => {
     // If we have an error but no client, report from errors map
     const hasError = errors.has(restaurantId);
 
+    // Check actual state if client exists
+    let state = 'disconnected';
+    if (client) {
+        try {
+            state = await client.getState();
+        } catch (e) {
+            state = 'disconnected';
+        }
+    }
+
+    const isConnected = !!client && !!client.info && state === 'CONNECTED';
+
     res.json({
         bridgeOnline: true,
-        online: !!client && !!client.info,
-        whatsapp: client?.info ? 'connected' : (qr ? 'needs_scan' : (hasError ? 'error' : (clients.has(restaurantId) ? 'initializing' : 'disconnected'))),
+        online: isConnected,
+        whatsapp: isConnected ? 'connected' : (qr ? 'needs_scan' : (hasError ? 'error' : (clients.has(restaurantId) ? 'initializing' : 'disconnected'))),
         qr: qr || null,
         user: client?.info?.pushname || null,
-        error: errors.get(restaurantId) || null
+        error: errors.get(restaurantId) || null,
+        state: state
     });
 });
 
-app.post('/initialize/:restaurantId', (req, res) => {
+app.post('/initialize/:restaurantId', async (req, res) => {
     const { restaurantId } = req.params;
     console.log(`[${new Date().toISOString()}] Init request: ${restaurantId}`);
-    errors.delete(restaurantId);
 
+    // If client exists, kill it properly first
     if (clients.has(restaurantId)) {
         const oldClient = clients.get(restaurantId);
-        oldClient.destroy().catch(() => { });
+        try {
+            await oldClient.destroy();
+        } catch (e) { }
         clients.delete(restaurantId);
     }
 
+    errors.delete(restaurantId);
+    qrs.delete(restaurantId);
+
     createClient(restaurantId);
     res.json({ success: true, message: 'Initialization started' });
+});
+
+app.post('/reset/:restaurantId', async (req, res) => {
+    const { restaurantId } = req.params;
+    console.log(`[${new Date().toISOString()}] Reset request for: ${restaurantId}`);
+
+    if (clients.has(restaurantId)) {
+        const client = clients.get(restaurantId);
+        try {
+            await client.destroy();
+        } catch (e) { }
+        clients.delete(restaurantId);
+    }
+
+    // Explicitly wipe the session folder
+    const sessionPath = path.join(__dirname, '.wwebjs_auth', `session-${restaurantId}`);
+    if (fs.existsSync(sessionPath)) {
+        console.log(`[${restaurantId}] Wiped session folder`);
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+    }
+
+    qrs.delete(restaurantId);
+    errors.delete(restaurantId);
+
+    res.json({ success: true, message: 'Session reset and cleared' });
 });
 
 app.post('/send-bill', async (req, res) => {
