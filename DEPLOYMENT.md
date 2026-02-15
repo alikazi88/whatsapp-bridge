@@ -90,9 +90,11 @@ Create a config file:
 ```bash
 sudo nano /etc/nginx/sites-available/whatsapp-bridge
 ```
-Paste this:
+Paste this (replace `bridge.foxmenu.21gfox.ca` with your domain):
 ```nginx
 server {
+    listen 80;
+    listen [::]:80;
     server_name bridge.foxmenu.21gfox.ca;
 
     location / {
@@ -102,12 +104,25 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
+        
+        # Explicit CORS headers (Optional, Express handles this but Nginx can help)
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '*';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
     }
 }
 ```
 Enable the site:
 ```bash
 sudo ln -s /etc/nginx/sites-available/whatsapp-bridge /etc/nginx/sites-enabled/
+# CRITICAL: Remove the default nginx config if it's causing conflicts
+sudo rm /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl restart nginx
 ```

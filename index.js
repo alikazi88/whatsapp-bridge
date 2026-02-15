@@ -169,15 +169,15 @@ app.post('/send-bill', async (req, res) => {
     }
 });
 
-// 404 Handler
+// Express handles 404s after all routes
 app.use((req, res) => {
     console.warn(`[404] No route for ${req.method} ${req.url}`);
-    res.status(404).json({ error: 'Route not found' });
+    res.status(404).json({ error: `Route ${req.url} not found on WhatsApp Bridge` });
 });
 
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Multi-Tenant WhatsApp Bridge running on http://0.0.0.0:${PORT}`);
+    console.log(`[${new Date().toISOString()}] Multi-Tenant WhatsApp Bridge listening on http://0.0.0.0:${PORT}`);
 
     // Auto-restart existing sessions on boot
     const authPath = path.join(__dirname, '.wwebjs_auth');
