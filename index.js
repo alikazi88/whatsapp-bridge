@@ -27,6 +27,10 @@ const createClient = (restaurantId) => {
             clientId: restaurantId,
             dataPath: path.join(__dirname, '.wwebjs_auth')
         }),
+        webVersionCache: {
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        },
         puppeteer: {
             args: [
                 '--no-sandbox',
@@ -35,7 +39,8 @@ const createClient = (restaurantId) => {
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
-                '--disable-gpu'
+                '--disable-gpu',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ],
             handleSIGINT: false,
         }
