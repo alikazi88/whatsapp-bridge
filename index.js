@@ -29,7 +29,7 @@ const createClient = (restaurantId) => {
         }),
         webVersionCache: {
             type: 'remote',
-            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014581017.html',
         },
         puppeteer: {
             args: [
@@ -40,9 +40,13 @@ const createClient = (restaurantId) => {
                 '--no-first-run',
                 '--no-zygote',
                 '--disable-gpu',
-                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                '--disable-extensions',
+                '--disable-setuid-sandbox',
+                '--enable-features=NetworkService,NetworkServiceInProcess',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
             ],
             handleSIGINT: false,
+            headless: 'new'
         }
     });
 
